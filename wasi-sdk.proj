@@ -1,0 +1,269 @@
+<Project Sdk="Microsoft.Build.Traversal">
+
+  <PropertyGroup>
+    <MonoLLVMHostOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">linux</MonoLLVMHostOS>
+    <MonoLLVMHostOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">osx</MonoLLVMHostOS>
+    <MonoLLVMHostOS Condition="'$(OS)' == 'Windows_NT'">win</MonoLLVMHostOS>
+    <MonoLLVMClangVersion Condition="'$(MonoLLVMHostOS)' == 'linux'">$(runtimelinuxx64MicrosoftNETCoreRuntimeMonoLLVMWasmATransportVersion)</MonoLLVMClangVersion>
+    <MonoLLVMClangVersion Condition="'$(MonoLLVMHostOS)' == 'win'">$(runtimewinx64MicrosoftNETCoreRuntimeMonoLLVMWasmATransportVersion)</MonoLLVMClangVersion>
+    <MonoLLVMClangVersion Condition="'$(MonoLLVMHostOS)' == 'osx'">$(runtimeosxx64MicrosoftNETCoreRuntimeMonoLLVMWasmATransportVersion)</MonoLLVMClangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <CMakeGenerator Condition="$(CMakeGenerator) == '' and '$(BuildOS)' != 'Windows_NT'">Unix Makefiles</CMakeGenerator>
+    <CMakeGenerator Condition="$(CMakeGenerator) == '' and '$(BuildOS)' == 'Windows_NT'">Ninja</CMakeGenerator>
+    <_VCVarsScriptName Condition="'$(BuildOS)' == 'Windows_NT'">vcvars64.bat</_VCVarsScriptName>
+    <_VCVarsScriptName Condition="'$(BuildOS)' == 'Windows_NT' and '$(TargetArchitecture)' == 'arm64'">vcvarsamd64_arm64.bat</_VCVarsScriptName>
+    <_VCVarsScriptName Condition="'$(BuildOS)' == 'Windows_NT' and '$(TargetArchitecture)' == 'arm'">vcvarsamd64_arm.bat</_VCVarsScriptName>
+    <_SetupEnvironment Condition="'$(BuildOS)' == 'Windows_NT'">
+    :: VisualStudio includes vswhere.exe that can be used to locate current VisualStudio installation.
+    set VSWHERE_TOOLS_BIN=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe
+    set VS_VCINSTALL_DIR=
+
+    :: Try to locate installed VisualStudio VC environment.
+    if "%VCINSTALLDIR%" == "" if exist "%VSWHERE_TOOLS_BIN%" (
+        for /f "tokens=*" %%a in ('"%VSWHERE_TOOLS_BIN%" -latest -prerelease -property installationPath') do (
+            set VS_VCINSTALL_DIR=%%a\VC\
+        )
+    )
+
+    if NOT "%VCINSTALLDIR%" == "" set VS_VCINSTALL_DIR=%VCINSTALLDIR%
+
+    :: Run VS build environment script.
+    call "%VS_VCINSTALL_DIR%\Auxiliary\Build\$(_VCVarsScriptName)"
+
+    </_SetupEnvironment>
+    <_BuildCommand Condition="'$(CMakeGenerator)' == 'Unix Makefiles'">$(_SetupEnvironment) make -j$([System.Environment]::ProcessorCount)</_BuildCommand>
+    <_BuildCommand Condition="'$(CMakeGenerator)' == 'Ninja'">$(_SetupEnvironment) ninja </_BuildCommand>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="runtime.$(MonoLLVMHostOS)-$(TargetArchitecture).Microsoft.NETCore.Runtime.Mono.LLVM.Wasm.A.Transport"
+                      Version="$(MonoLLVMClangVersion)"
+                      PackageArch="$(TargetArchitecture)"
+                      Condition="'$(TargetArchitecture)' != ''" />
+    <PackageReference Include="runtime.$(MonoLLVMHostOS)-$(TargetArchitecture).Microsoft.NETCore.Runtime.Mono.LLVM.Wasm.B.Transport"
+                      Version="$(MonoLLVMClangVersion)"
+                      PackageArch="$(TargetArchitecture)"
+                      Condition="'$(TargetArchitecture)' != ''" />
+    <PackageReference Include="runtime.$(MonoLLVMHostOS)-$(BuildArchitecture).Microsoft.NETCore.Runtime.Mono.LLVM.Wasm.A.Transport"
+                      Version="$(MonoLLVMClangVersion)"
+                      PackageArch="$(BuildArchitecture)"
+                      Condition="'$(BuildArchitecture)' != ''" />
+    <PackageReference Include="runtime.$(MonoLLVMHostOS)-$(BuildArchitecture).Microsoft.NETCore.Runtime.Mono.LLVM.Wasm.B.Transport"
+                      Version="$(MonoLLVMClangVersion)"
+                      PackageArch="$(BuildArchitecture)"
+                      Condition="'$(BuildArchitecture)' != ''" />
+    <_PackageReferenceDeduplicated Include="@(PackageReference->Distinct())" />
+    <PackageReference Remove="@(PackageReference)" />
+    <PackageReference Include="@(_PackageReferenceDeduplicated->Distinct())" />
+  </ItemGroup>
+
+  <Target Name="CopyLLVMToTree" BeforeTargets="Build">
+    <ItemGroup>
+      <LLVMFiles Include="$(NuGetPackageRoot)\$([System.String]::Copy(%(PackageReference.Identity)).ToLowerInvariant())\%(PackageReference.Version)\tools\$(MonoLLVMHostOS)-%(PackageReference.PackageArch)\**"
+                 FileArch="%(PackageReference.PackageArch)"
+                 Condition="$([System.String]::Copy(%(PackageReference.Identity)).Contains('Microsoft.NETCore.Runtime.Mono.LLVM.Wasm.')) == 'true'" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LLVMFiles)" DestinationFolder="$(MonoLLVMDir)\%(LLVMFiles.FileArch)\%(RecursiveDir)">
+      <Output TaskParameter="DestinationFiles" ItemName="FileWrites"/>
+    </Copy>
+    <Message Importance="High" Text="** Building WASI SDK with Clang:  $(BuildLLVM)" />
+    <Message Importance="High" Text="** Packaging WASI SDK with Clang: $(PackageLLVM)" />
+    <Message Importance="High" Text="** (These values should differ for cross-compilation)" />
+  </Target>
+
+  <Target Name="BuildLibc" AfterTargets="CopyLLVMToTree">
+    <Error Condition="'$(MonoLLVMHostOS)' == 'win' and !Exists('$(MsysDir)')" Text="Error: You need to set the MsysDir environment variable pointing to the MSYS2 install root." />
+    <PropertyGroup>
+      <_UnixBuildLLVM Condition="'$(MonoLLVMHostOS)' == 'win'">/$(BuildLLVM.Replace('\','/').Replace(':',''))</_UnixBuildLLVM>
+      <_UnixBuildLLVM Condition="'$(MonoLLVMHostOS)' != 'win'">$(BuildLLVM)</_UnixBuildLLVM>
+      <_UnixSysrootDir Condition="'$(MonoLLVMHostOS)' == 'win'">/$(SysrootDir.Replace('\','/').Replace(':',''))</_UnixSysrootDir>
+      <_UnixSysrootDir Condition="'$(MonoLLVMHostOS)' != 'win'">$(SysrootDir)</_UnixSysrootDir>
+      <_UnixLibcBuildDir Condition="'$(MonoLLVMHostOS)' == 'win'">/$(LibcBuildDir.Replace('\','/').Replace(':',''))</_UnixLibcBuildDir>
+      <_UnixLibcBuildDir Condition="'$(MonoLLVMHostOS)' != 'win'">$(LibcBuildDir)</_UnixLibcBuildDir>
+      <_MSysBinPrefix Condition="'$(MonoLLVMHostOS)' == 'win'">$(MsysDir)\usr\bin\bash -lc '</_MSysBinPrefix>
+      <_MSysBinSuffix Condition="'$(MonoLLVMHostOS)' == 'win'">'</_MSysBinSuffix>
+    </PropertyGroup>
+    <Exec WorkingDirectory="$(MSBuildThisFileDirectory)"
+      Command="$(_MSysBinPrefix)make -C src/wasi-libc CC=$(_UnixBuildLLVM)/bin/clang AR=$(_UnixBuildLLVM)/bin/llvm-ar NM=$(_UnixBuildLLVM)/bin/llvm-nm SYSROOT=$(_UnixSysrootDir) OBJDIR=$(_UnixLibcBuildDir)$(_MSysBinSuffix)"
+      IgnoreStandardErrorWarningFormat="true"
+      EnvironmentVariables="CHERE_INVOKING=1" />
+    <Exec WorkingDirectory="$(MSBuildThisFileDirectory)"
+      Command="$(_MSysBinPrefix)make -C src/wasi-libc CC=$(_UnixBuildLLVM)/bin/clang AR=$(_UnixBuildLLVM)/bin/llvm-ar NM=$(_UnixBuildLLVM)/bin/llvm-nm SYSROOT=$(_UnixSysrootDir) OBJDIR=$(_UnixLibcBuildDir) THREAD_MODEL=posix$(_MSysBinSuffix)"
+      IgnoreStandardErrorWarningFormat="true"
+      EnvironmentVariables="CHERE_INVOKING=1" />
+  </Target>
+
+  <Target Name="BuildCompilerRt" AfterTargets="BuildLibc">
+    <ReadLinesFromFile File="$(BuildLLVM)\lib\cmake\llvm\LLVMConfigVersion.cmake">
+      <Output TaskParameter="Lines" PropertyName="_LLVMVersionLine" />
+    </ReadLinesFromFile>
+    <PropertyGroup>
+      <_LLVMVersion>$([System.Text.RegularExpressions.Regex]::Match($(_LLVMVersionLine), '[0-9]+.[0-9]+.[0-9]+'))</_LLVMVersion>
+    </PropertyGroup>
+    <PropertyGroup>
+      <_UnixBuildLLVM Condition="'$(MonoLLVMHostOS)' == 'win'">$(BuildLLVM.Replace('\','/'))</_UnixBuildLLVM>
+      <_UnixBuildLLVM Condition="'$(MonoLLVMHostOS)' != 'win'">$(BuildLLVM)</_UnixBuildLLVM>
+      <_UnixSourceLLVM Condition="'$(MonoLLVMHostOS)' == 'win'">$(SourceLLVM.Replace('\','/'))</_UnixSourceLLVM>
+      <_UnixSourceLLVM Condition="'$(MonoLLVMHostOS)' != 'win'">$(SourceLLVM)</_UnixSourceLLVM>
+      <_UnixSysrootDir Condition="'$(MonoLLVMHostOS)' == 'win'">$(SysrootDir.Replace('\','/'))</_UnixSysrootDir>
+      <_UnixSysrootDir Condition="'$(MonoLLVMHostOS)' != 'win'">$(SysrootDir)</_UnixSysrootDir>
+      <_UnixMSBuildThisFileDirectory Condition="'$(MonoLLVMHostOS)' == 'win'">$(MSBuildThisFileDirectory.Replace('\','/'))</_UnixMSBuildThisFileDirectory>
+      <_UnixMSBuildThisFileDirectory Condition="'$(MonoLLVMHostOS)' != 'win'">$(MSBuildThisFileDirectory)</_UnixMSBuildThisFileDirectory>
+      <_UnixCompilerRtDir Condition="'$(MonoLLVMHostOS)' == 'win'">$(CompilerRtDir.Replace('\','/'))</_UnixCompilerRtDir>
+      <_UnixCompilerRtDir Condition="'$(MonoLLVMHostOS)' != 'win'">$(CompilerRtDir)</_UnixCompilerRtDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CompilerRtBuildArgs Include="-DCMAKE_SYSROOT=$(_UnixSysrootDir)" />
+      <_CompilerRtBuildArgs Include="-DCMAKE_C_COMPILER_WORKS:BOOL=ON" />
+      <_CompilerRtBuildArgs Include="-DCMAKE_CXX_COMPILER_WORKS:BOOL=ON" />
+      <_CompilerRtBuildArgs Include="-DCMAKE_MODULE_PATH=$(_UnixMSBuildThisFileDirectory)/cmake" />
+      <_CompilerRtBuildArgs Include="-DCMAKE_BUILD_TYPE=RelWithDebInfo" />
+      <_CompilerRtBuildArgs Include="-DCMAKE_TOOLCHAIN_FILE=$(_UnixMSBuildThisFileDirectory)/microsoft-wasi-sdk.cmake" />
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_BAREMETAL_BUILD:BOOL=ON" />
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_BUILD_XRAY:BOOL=OFF" />
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_INCLUDE_TESTS:BOOL=OFF" />
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_HAS_FPIC_FLAG:BOOL=OFF" />
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_ENABLE_IOS:BOOL=OFF" />
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_DEFAULT_TARGET_ONLY:BOOL=ON"/>
+      <_CompilerRtBuildArgs Include="-DBUILD_LLVM_PREFIX=$(_UnixBuildLLVM)"/>
+      <_CompilerRtBuildArgs Include="-DCMAKE_C_FLAGS='-fdebug-prefix-map=$(_UnixMSBuildThisFileDirectory)=wasisdk://v$(VersionPrefix)'"/>
+      <_CompilerRtBuildArgs Include="-DCOMPILER_RT_OS_DIR=wasi"/>
+      <_CompilerRtBuildArgs Include="-DCMAKE_INSTALL_PREFIX=$(_UnixCompilerRtDir)/lib/clang/$(_LLVMVersion)/"/>
+      <_CompilerRtBuildArgs Include="-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"/>
+    </ItemGroup>
+    <PropertyGroup>
+      <_CompilerRtCmakeArgs>$(_SetupEnvironment) cmake $(_UnixSourceLLVM)/compiler-rt/lib/builtins -G "$(CMakeGenerator)" @(_CompilerRtBuildArgs->'%(Identity)',' ')</_CompilerRtCmakeArgs>
+    </PropertyGroup>
+    <Message Importance="High" Text="Running: $(_CompilerRtCmakeArgs)" />
+    <MakeDir Directories="$(CompilerRtDir)" Condition="!Exists('$(CompilerRtDir)')" />
+    <Exec WorkingDirectory="$(CompilerRtDir)"
+      Command="$(_CompilerRtCmakeArgs)"
+      IgnoreStandardErrorWarningFormat="true" />
+    <Exec WorkingDirectory="$(CompilerRtDir)"
+      Command="$(_BuildCommand)"
+      IgnoreStandardErrorWarningFormat="true" />
+    <Exec WorkingDirectory="$(CompilerRtDir)"
+      Command="$(_BuildCommand) install"
+      IgnoreStandardErrorWarningFormat="true" />
+  </Target>
+
+  <Target Name="BuildLibCxx" AfterTargets="BuildCompilerRt">
+    <PropertyGroup>
+      <_UnixBuildLLVM Condition="'$(MonoLLVMHostOS)' == 'win'">$(BuildLLVM.Replace('\','/'))</_UnixBuildLLVM>
+      <_UnixBuildLLVM Condition="'$(MonoLLVMHostOS)' != 'win'">$(BuildLLVM)</_UnixBuildLLVM>
+      <_UnixSourceLLVM Condition="'$(MonoLLVMHostOS)' == 'win'">$(SourceLLVM.Replace('\','/'))</_UnixSourceLLVM>
+      <_UnixSourceLLVM Condition="'$(MonoLLVMHostOS)' != 'win'">$(SourceLLVM)</_UnixSourceLLVM>
+      <_UnixSysrootDir Condition="'$(MonoLLVMHostOS)' == 'win'">$(SysrootDir.Replace('\','/'))</_UnixSysrootDir>
+      <_UnixSysrootDir Condition="'$(MonoLLVMHostOS)' != 'win'">$(SysrootDir)</_UnixSysrootDir>
+      <_UnixMSBuildThisFileDirectory Condition="'$(MonoLLVMHostOS)' == 'win'">$(MSBuildThisFileDirectory.Replace('\','/'))</_UnixMSBuildThisFileDirectory>
+      <_UnixMSBuildThisFileDirectory Condition="'$(MonoLLVMHostOS)' != 'win'">$(MSBuildThisFileDirectory)</_UnixMSBuildThisFileDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_LibCxxBuildArgs Include="-DCMAKE_C_COMPILER_WORKS:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DCMAKE_CXX_COMPILER_WORKS:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DCMAKE_MODULE_PATH=$(_UnixMSBuildThisFileDirectory)/cmake" />
+      <_LibCxxBuildArgs Include="-DCMAKE_TOOLCHAIN_FILE=$(_UnixMSBuildThisFileDirectory)/microsoft-wasi-sdk.cmake" />
+      <_LibCxxBuildArgs Include="-DCMAKE_STAGING_PREFIX=$(_UnixSysrootDir)" />
+      <_LibCxxBuildArgs Include="-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DCXX_SUPPORTS_CXX11:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_ENABLE_THREADS:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_HAS_PTHREAD_API:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_HAS_EXTERNAL_THREAD_API:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_HAS_WIN32_THREAD_API:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLLVM_COMPILER_CHECKED:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DCMAKE_BUILD_TYPE=RelWithDebugInfo" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_ENABLE_SHARED:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_ENABLE_EXCEPTIONS:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_ENABLE_FILESYSTEM:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_CXX_ABI=libcxxabi" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_CXX_ABI_INCLUDE_PATHS=$(_UnixSourceLLVM)/libcxxabi/include" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_HAS_MUSL_LIBC:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DLIBCXX_ABI_VERSION=2" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_ENABLE_EXCEPTIONS:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_ENABLE_SHARED:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_SILENT_TERMINATE:BOOL=ON" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_ENABLE_THREADS:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_HAS_PTHREAD_API:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_HAS_EXTERNAL_THREAD_API:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_BUILD_EXTERNAL_THREAD_LIBRARY:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_HAS_WIN32_THREAD_API:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_ENABLE_PIC:BOOL=OFF" />
+      <_LibCxxBuildArgs Include="-DBUILD_LLVM_PREFIX=$(_UnixBuildLLVM)"/>
+      <_LibCxxBuildArgs Include="-DUNIX:BOOL=ON" />
+      <_LibCxxBuildArgs Include="--debug-trycompile" />
+      <_LibCxxBuildArgs Include="-DCMAKE_SYSROOT=$(_UnixSysrootDir)" />
+      <_LibCxxBuildArgs Include="-DCMAKE_C_FLAGS='-fdebug-prefix-map=$(_UnixMSBuildThisFileDirectory)=wasisdk://v$(VersionPrefix)'"/>
+      <_LibCxxBuildArgs Include="-DCMAKE_CXX_FLAGS='-fdebug-prefix-map=$(_UnixMSBuildThisFileDirectory)=wasisdk://v$(VersionPrefix)'"/>
+      <_LibCxxBuildArgs Include="-DLIBCXX_LIBDIR_SUFFIX=/wasm32-wasi" />
+      <_LibCxxBuildArgs Include="-DLIBCXXABI_LIBDIR_SUFFIX=/wasm32-wasi" />
+      <_LibCxxBuildArgs Include='-DLLVM_ENABLE_RUNTIMES="libcxx%3Blibcxxabi"' />
+    </ItemGroup>
+    <PropertyGroup>
+      <_LibCxxCmakeArgs>$(_SetupEnvironment) cmake $(_UnixSourceLLVM)/runtimes -G "$(CMakeGenerator)" @(_LibCxxBuildArgs->'%(Identity)',' ')</_LibCxxCmakeArgs>
+    </PropertyGroup>
+    <Message Importance="High" Text="Running: $(_LibCxxCmakeArgs)" />
+    <MakeDir Directories="$(LibCxxBuildDir)" Condition="!Exists('$(LibCxxBuildDir)')" />
+    <Exec WorkingDirectory="$(LibCxxBuildDir)"
+      Command="$(_LibCxxCmakeArgs)"
+      IgnoreStandardErrorWarningFormat="true" />
+    <Exec WorkingDirectory="$(LibCxxBuildDir)"
+      Command="$(_BuildCommand)"
+      IgnoreStandardErrorWarningFormat="true" />
+    <Exec WorkingDirectory="$(LibCxxBuildDir)"
+      Command="$(_BuildCommand) install"
+      IgnoreStandardErrorWarningFormat="true" />
+  </Target>
+
+  <Target Name="ComposeProduct" AfterTargets="BuildLibCxx">
+    <ItemGroup>
+      <ComposeFiles Include="$(MonoLLVMDir)\$(TargetArchitecture)\**" />
+      <ComposeFiles Include="$(BaseIntermediateOutputPath)\sysrootprefix\**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ComposeFiles)" DestinationFolder="$(BinDir)\%(RecursiveDir)" />
+    <Copy SourceFiles="$(RootRepoDir)src\config\config.sub" DestinationFolder="$(BinDir)\share\misc" />
+    <Copy SourceFiles="$(RootRepoDir)src\config\config.guess" DestinationFolder="$(BinDir)\share\misc" />
+    <Copy SourceFiles="$(RootRepoDir)wasi-sdk.cmake" DestinationFolder="$(BinDir)\share\cmake" />
+    <Copy SourceFiles="$(RootRepoDir)wasi-sdk-pthread.cmake" DestinationFolder="$(BinDir)\share\cmake" />
+    <Copy SourceFiles="$(CompilerRtDir)lib\wasi\libclang_rt.builtins-wasm32.a" DestinationFolder="$(BinDir)\lib\clang\$(_LLVMVersion)\lib\wasi"/>
+    <ItemGroup>
+      <FilesToDelete Include="$(BinDir)\bin\count*" />
+      <FilesToDelete Include="$(BinDir)\bin\llc*" />
+      <FilesToDelete Include="$(BinDir)\bin\llvm-as*" />
+      <FilesToDelete Include="$(BinDir)\bin\llvm-config*" />
+      <FilesToDelete Include="$(BinDir)\bin\llvm-dis*" />
+      <FilesToDelete Include="$(BinDir)\bin\llvm-mca*" />
+      <FilesToDelete Include="$(BinDir)\bin\llvm-tblgen*" />
+      <FilesToDelete Include="$(BinDir)\bin\llvm-PerfectShuffle*" />
+      <FilesToDelete Include="$(BinDir)\bin\not*" />
+      <FilesToDelete Include="$(BinDir)\bin\opt*" />
+      <FilesToDelete Include="$(BinDir)\bin\yaml-bench*" />
+      <FilesToDelete Include="$(BinDir)\bin\FileCheck*" />
+      <FilesToDelete Include="$(BinDir)\lib\libLLVM*a" />
+      <FilesToDelete Include="$(BinDir)\lib\LLVM*lib" />
+      <FilesToDelete Include="$(BinDir)\lib\libobjwriter*so*" />
+      <FilesToDelete Include="$(BinDir)\lib\objwriter*lib" />
+      <FilesToDelete Include="$(BinDir)\share\clang\bash-autocomplete.sh" />
+      <FilesToDelete Include="$(BinDir)\share\clang\clang-doc-default-stylesheet.css" />
+      <FilesToDelete Include="$(BinDir)\share\clang\clang-include-fixer.*" />
+      <FilesToDelete Include="$(BinDir)\share\clang\clang-rename.*" />
+      <FilesToDelete Include="$(BinDir)\share\clang\index.js" />
+      <FilesToDelete Include="$(BinDir)\share\clang\run-find-all-symbols.py" />
+      <DirsToDelete Include="$(BinDir)\lib\clang\clang" />
+      <DirsToDelete Include="$(BinDir)\lib\clang\lld" />
+      <DirsToDelete Include="$(BinDir)\lib\clang\llvm" />
+      <DirsToDelete Include="$(BinDir)\lib\cmake" />
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" ContinueOnError="true" TreatErrorsAsWarnings="true" />
+    <RemoveDir Directories="@(DirsToDelete)" />
+  </Target>
+
+  <Target Name="Build" DependsOnTargets="CopyLLVMToTree;BuildLibc;BuildCompilerRt;BuildLibCxx;ComposeProduct" />
+  <Target Name="Test" />
+  <Target Name="ReallyPack" BeforeTargets="Pack">
+    <MSBuild Projects="eng/nuget/packages.builds" Targets="Build" />
+  </Target>
+</Project>
