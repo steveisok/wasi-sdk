@@ -1,5 +1,4 @@
-<Project>
-  <Import Project="$(RepoRoot)\Directory.Build.props" />
+<Project Sdk="Microsoft.Build.Traversal">
   <PropertyGroup>
     <MonoLLVMHostOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">linux</MonoLLVMHostOS>
     <MonoLLVMHostOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">osx</MonoLLVMHostOS>
@@ -271,5 +270,4 @@
              Targets="Build" 
              Properties="PreReleaseVersionLabel=$(PreReleaseVersionLabel);PreReleaseVersionIteration=$(PreReleaseVersionIteration)" />
   </Target>
-  <Import Project="$(RepoRoot)\Directory.Build.targets" />
 </Project>
