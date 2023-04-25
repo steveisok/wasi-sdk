@@ -60,11 +60,11 @@ stages:
           displayName: 'Clean up working directory and check out submodules'
 
         - bash: |
-            ./build.sh --ci --restore --build --pack $(archflag) --configuration $(_BuildConfig) $(_InternalBuildArgs) /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
+            ./build.sh --ci --restore --build --pack $(archflag) --configuration $(_BuildConfig) /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
         - bash: |
-            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) $(_InternalBuildArgs) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) $(ClangVersionArg) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
+            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) $(ClangVersionArg) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
@@ -95,11 +95,11 @@ stages:
           displayName: 'Clean up working directory and check out submodules'
 
         - bash: |
-            ./build.sh --ci --restore --build --pack $(archflag) --configuration $(_BuildConfig) $(_InternalBuildArgs) /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
+            ./build.sh --ci --restore --build --pack $(archflag) --configuration $(_BuildConfig) /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
         - bash:
-            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) $(_InternalBuildArgs) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
+            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
@@ -140,10 +140,10 @@ stages:
             C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S msys/make msys/ninja msys/cmake msys/diffutils'
           displayName: Install MSYS2 packages (GNU Make and related)
 
-        - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) $(_InternalBuildArgs) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
+        - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
-        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) $(_InternalBuildArgs) /p:AssetManifestOS=$(_BuildConfig)-$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
+        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) /p:AssetManifestOS=$(_BuildConfig)-$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
