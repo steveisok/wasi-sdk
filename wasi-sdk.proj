@@ -1,5 +1,5 @@
-<Project Sdk="Microsoft.Build.Traversal">
-
+<Project>
+  <Import Project="$(RepoRoot)\Directory.Build.props" />
   <PropertyGroup>
     <MonoLLVMHostOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">linux</MonoLLVMHostOS>
     <MonoLLVMHostOS Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">osx</MonoLLVMHostOS>
@@ -263,7 +263,13 @@
 
   <Target Name="Build" DependsOnTargets="CopyLLVMToTree;BuildLibc;BuildCompilerRt;BuildLibCxx;ComposeProduct" />
   <Target Name="Test" />
-  <Target Name="ReallyPack" BeforeTargets="Pack">
-    <MSBuild Projects="eng/nuget/packages.builds" Targets="Build" />
+  <Target Name="Pack" DependsOnTargets="Build">
+    <Message Importance="High" Text="Creating nuget packages..." />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)eng\nuget\Microsoft.NET.Runtime.Wasi.Sdk\Microsoft.NET.Runtime.Wasi.Sdk.pkgproj" Targets="Build" Condition="'$(ForceBuildManifestOnly)' != 'true' and '$(ArcadeBuildFromSource)' != 'true'" />
+
+    <MSBuild Projects="$(MSBuildThisFileDirectory)eng\nuget\Microsoft.NET.Workload.Wasi.Current.Manifest\Microsoft.NET.Workload.Wasi.Current.Manifest.pkgproj" 
+             Targets="Build" 
+             Properties="PreReleaseVersionLabel=$(PreReleaseVersionLabel);PreReleaseVersionIteration=$(PreReleaseVersionIteration)" />
   </Target>
+  <Import Project="$(RepoRoot)\Directory.Build.targets" />
 </Project>

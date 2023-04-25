@@ -1,5 +1,6 @@
 <Project DefaultTargets="Build">
   <Import Project="$(RepoRoot)\Directory.Build.props" />
+  <Import Project="..\packaging.props" />
 
   <Import Project="$(NuGetPackageRoot)\microsoft.dotnet.build.tasks.packaging\$(MicrosoftDotNetBuildTasksPackagingVersion)\build\Microsoft.DotNet.Build.Tasks.Packaging.props" />
   <Import Project="$(NuGetPackageRoot)\microsoft.dotnet.build.tasks.templating\$(MicrosoftDotNetBuildTasksTemplatingVersion)\build\Microsoft.DotNet.Build.Tasks.Templating.props" />
@@ -49,5 +50,6 @@
   </Target>
 
   <Import Project="$(NuGetPackageRoot)\microsoft.dotnet.build.tasks.packaging\$(MicrosoftDotNetBuildTasksPackagingVersion)\build\Microsoft.DotNet.Build.Tasks.Packaging.targets" />
+  <Import Project="$([MSBuild]::GetPathOfFileAbove(Directory.Build.targets))" />
   <Import Project="$(RepoRoot)\Directory.Build.targets" />
 </Project>
