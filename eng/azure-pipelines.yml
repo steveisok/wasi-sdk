@@ -64,7 +64,7 @@ stages:
           displayName: 'Build and package'
 
         - publish: artifacts/packages
-          artifact: Packages_Linux
+          artifact: Packages_Linux_$(assetManifestPlatform)
 
       ############ MACOS BUILD ############
       - job: Build_macOS
@@ -97,7 +97,7 @@ stages:
           displayName: 'Build and package'
 
         - publish: artifacts/packages
-          artifact: Packages_macOS
+          artifact: Packages_macOS_$(assetManifestPlatform)
 
       ############ WINDOWS BUILD ############
       - job: Build_Windows
@@ -140,7 +140,7 @@ stages:
           displayName: 'Build and package'
 
         - publish: artifacts/packages
-          artifact: Packages_Windows
+          artifact: Packages_Windows_$(assetManifestPlatform)
 
 ############ POST BUILD ARCADE LOGIC ############
 - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest')) }}:
