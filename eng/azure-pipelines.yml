@@ -63,10 +63,8 @@ stages:
             ./build.sh --ci --restore --build --pack $(archflag) --configuration $(_BuildConfig) /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
-        - bash: |
-            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) $(ClangVersionArg) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
-          displayName: Publish packages
-          condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
+        - publish: artifacts/packages
+          artifact: Packages_Linux
 
       ############ MACOS BUILD ############
       - job: Build_macOS
@@ -98,10 +96,8 @@ stages:
             ./build.sh --ci --restore --build --pack $(archflag) --configuration $(_BuildConfig) /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
-        - bash:
-            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
-          displayName: Publish packages
-          condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
+        - publish: artifacts/packages
+          artifact: Packages_macOS
 
       ############ WINDOWS BUILD ############
       - job: Build_Windows
@@ -143,9 +139,8 @@ stages:
         - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
-        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(_BuildConfig)-$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
-          displayName: Publish packages
-          condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
+        - publish: artifacts/packages
+          artifact: Packages_Windows
 
 ############ POST BUILD ARCADE LOGIC ############
 - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest')) }}:
