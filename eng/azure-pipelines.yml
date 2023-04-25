@@ -64,7 +64,7 @@ stages:
           displayName: 'Build and package'
 
         - bash: |
-            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) $(ClangVersionArg) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
+            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) $(ClangVersionArg) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
@@ -99,7 +99,7 @@ stages:
           displayName: 'Build and package'
 
         - bash:
-            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
+            ./eng/common/build.sh --ci --restore --publish --configuration $(_BuildConfig) /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) --projects $(Build.SourcesDirectory)/wasi-sdk.proj
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
@@ -143,7 +143,7 @@ stages:
         - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
           displayName: 'Build and package'
 
-        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) /p:AssetManifestOS=$(_BuildConfig)-$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
+        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(_BuildConfig)-$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
