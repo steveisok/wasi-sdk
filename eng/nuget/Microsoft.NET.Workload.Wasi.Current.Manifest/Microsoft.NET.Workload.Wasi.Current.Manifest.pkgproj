@@ -2,9 +2,6 @@
   <Import Project="$(RepoRoot)\Directory.Build.props" />
   <Import Project="..\packaging.props" />
 
-  <Import Project="$(NuGetPackageRoot)\microsoft.dotnet.build.tasks.packaging\$(MicrosoftDotNetBuildTasksPackagingVersion)\build\Microsoft.DotNet.Build.Tasks.Packaging.props" />
-  <Import Project="$(NuGetPackageRoot)\microsoft.dotnet.build.tasks.templating\$(MicrosoftDotNetBuildTasksTemplatingVersion)\build\Microsoft.DotNet.Build.Tasks.Templating.props" />
-
   <PropertyGroup>
     <PackageDescription>Internal toolchain package not meant for direct consumption. Please do not reference directly.</PackageDescription>
     <Description>Internal toolchain package not meant for direct consumption. Please do not reference directly.</Description>
