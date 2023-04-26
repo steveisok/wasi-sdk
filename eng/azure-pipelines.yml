@@ -66,6 +66,42 @@ stages:
         - publish: artifacts/packages
           artifact: Packages_Linux_$(assetManifestPlatform)
 
+      # Only run in case of in-build signing
+      - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'), ne(variables['PostBuildSign'], 'true')) }}:
+        - job: Sign_Linux
+          dependsOn: Build_Linux
+          displayName: Sign Linux_x64
+          timeoutInMinutes: 30
+          pool:
+            name: $(DncEngInternalBuildPool)
+            demands: ImageOverride -equals windows.vs2022.amd64
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: Packages_Linux_x64
+              path: 'artifacts/packages'
+
+          - powershell: |
+              ./eng/common/build.ps1 -ci -configuration $(_BuildConfig) -restore -sign -publish /p:PackageRID=linux-x64 /p:AssetManifestOS=linux /p:PlatformName=x64 $(_InternalBuildArgs)
+            displayName: Sign and Publish
+        
+        - job: Sign_Linux
+          dependsOn: Build_Linux
+          displayName: Sign Linux_arm64
+          timeoutInMinutes: 30
+          pool:
+            name: $(DncEngInternalBuildPool)
+            demands: ImageOverride -equals windows.vs2022.amd64
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: Packages_Linux_arm64
+              path: 'artifacts/packages'
+
+          - powershell: |
+              ./eng/common/build.ps1 -ci -configuration $(_BuildConfig) -restore -sign -publish /p:PackageRID=linux-arm64 /p:AssetManifestOS=linux /p:PlatformName=x64 $(_InternalBuildArgs)
+            displayName: Sign and Publish
+
       ############ MACOS BUILD ############
       - job: Build_macOS
         displayName: macOS
@@ -98,6 +134,43 @@ stages:
 
         - publish: artifacts/packages
           artifact: Packages_macOS_$(assetManifestPlatform)
+
+      # Only run in case of in-build signing
+      - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'), ne(variables['PostBuildSign'], 'true')) }}:
+        - job: Sign_macOS
+          dependsOn: Build_macOS
+          displayName: Sign macOS_x64
+          timeoutInMinutes: 30
+          pool:
+            name: $(DncEngInternalBuildPool)
+            demands: ImageOverride -equals windows.vs2022.amd64
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: Packages_macOS_x64
+              path: 'artifacts/packages'
+
+          - powershell: |
+              ./eng/common/build.ps1 -ci -configuration $(_BuildConfig) -restore -sign -publish /p:PackageRID=osx-x64 /p:AssetManifestOS=osx /p:PlatformName=x64 $(_InternalBuildArgs)
+            displayName: Sign and Publish
+
+        - job: Sign_macOS
+          dependsOn: Build_macOS
+          displayName: Sign macOS_arm64
+          timeoutInMinutes: 30
+          pool:
+            name: $(DncEngInternalBuildPool)
+            demands: ImageOverride -equals windows.vs2022.amd64
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: Packages_macOS_arm64
+              path: 'artifacts/packages'
+
+          - powershell: |
+              ./eng/common/build.ps1 -ci -configuration $(_BuildConfig) -restore -sign -publish /p:PackageRID=osx-arm64 /p:AssetManifestOS=osx /p:PlatformName=x64 $(_InternalBuildArgs)
+            displayName: Sign and Publish
+
 
       ############ WINDOWS BUILD ############
       - job: Build_Windows
@@ -136,7 +209,7 @@ stages:
             C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S msys/make msys/ninja msys/cmake msys/diffutils'
           displayName: Install MSYS2 packages (GNU Make and related)
 
-        - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform)
+        - powershell: eng\build.ps1 -ci -restore -build -sign -publish -pack $(archflag) -configuration $(_BuildConfig) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:workloadPackagesPath=$(Build.SourcesDirectory)\artifacts\packages\$(_BuildConfig)\Shipping
           displayName: 'Build and package'
 
         - publish: artifacts/packages
