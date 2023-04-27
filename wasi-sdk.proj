@@ -266,7 +266,8 @@
     <Message Importance="High" Text="Creating nuget packages..." />
     <MSBuild Projects="$(MSBuildThisFileDirectory)eng\nuget\Microsoft.NET.Runtime.Wasi.Sdk\Microsoft.NET.Runtime.Wasi.Sdk.pkgproj" Targets="Build" Condition="'$(ForceBuildManifestOnly)' != 'true' and '$(ArcadeBuildFromSource)' != 'true'" />
 
-    <MSBuild Projects="$(MSBuildThisFileDirectory)eng\nuget\Microsoft.NET.Workload.Wasi.Current.Manifest\Microsoft.NET.Workload.Wasi.Current.Manifest.pkgproj" 
+    <MSBuild Condition="'$(AssetManifestOS)' == '' or '$(AssetManifestOS)' == 'win' or '$(ForceBuildManifestOnly)' == 'true' or '$(ArcadeBuildFromSource)' == 'true'"
+             Projects="$(MSBuildThisFileDirectory)eng\nuget\Microsoft.NET.Workload.Wasi.Current.Manifest\Microsoft.NET.Workload.Wasi.Current.Manifest.pkgproj" 
              Targets="Build" 
              Properties="PreReleaseVersionLabel=$(PreReleaseVersionLabel);PreReleaseVersionIteration=$(PreReleaseVersionIteration)" />
   </Target>
