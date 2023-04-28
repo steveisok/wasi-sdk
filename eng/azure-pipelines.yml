@@ -111,10 +111,6 @@ stages:
         - _BuildConfig: Release
         strategy:
           matrix:
-            x64:
-              assetManifestOS: win
-              assetManifestPlatform: x64
-              archflag: -arch x64
             arm64:
               assetManifestOS: win
               assetManifestPlatform: arm64
@@ -147,6 +143,45 @@ stages:
           displayName: Publish packages
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
+      ####### Last job - windows job that builds workloads too at the end #########
+      - job: Build_Windows
+        displayName: Windows
+        timeoutInMinutes: 480
+        variables:
+        - _BuildConfig: Release
+        strategy:
+          matrix:
+            x64:
+              assetManifestOS: win
+              assetManifestPlatform: x64
+              archflag: -arch x64
+        pool:
+          ${{ if eq(variables['System.TeamProject'], 'public') }}:
+            name: $(DncEngPublicBuildPool)
+            demands: ImageOverride -equals 1es-windows-2022-open
+          ${{ if eq(variables['System.TeamProject'], 'internal') }}:
+            name: $(DncEngInternalBuildPool)
+            demands: ImageOverride -equals 1es-windows-2022
+        steps:
+        - script: |
+            git clean -ffdx
+            git reset --hard HEAD
+            git submodule update --init
+            git submodule foreach git clean -ffdx
+          displayName: 'Clean up working directory and check out submodules'
+
+        - powershell: |
+            C:\msys64\usr\bin\bash -lc ' '
+            C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -Syuu'
+            C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S msys/make msys/ninja msys/cmake msys/diffutils'
+          displayName: Install MSYS2 packages (GNU Make and related)
+
+        - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) $(_InternalBuildArgs) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:workloadPackagesPath=$(Build.SourcesDirectory)\artifacts\packages\$(_BuildConfig)\Shipping
+          displayName: 'Build and package'
+
+        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) $(_InternalBuildArgs) /p:AssetManifestOS=$(_BuildConfig)-$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
+          displayName: Publish packages
+          condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 ############ POST BUILD ARCADE LOGIC ############
 - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest')) }}:
   - template: /eng/common/templates/post-build/post-build.yml
