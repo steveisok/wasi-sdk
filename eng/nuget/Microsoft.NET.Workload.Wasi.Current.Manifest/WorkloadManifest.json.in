@@ -20,7 +20,7 @@
         "linux-x64": "Microsoft.NET.Runtime.Wasi.${WasiVersion}.Sdk.linux-x64",
         "linux-arm64": "Microsoft.NET.Runtime.Wasi.${WasiVersion}.Sdk.linux-arm64",
         "osx-x64": "Microsoft.NET.Runtime.Wasi.${WasiVersion}.Sdk.osx-x64",
-        "osx-arm64": "Microsoft.NET.Runtime.Wasi.${WasiVersion}.Sdk.osx-x64"
+        "osx-arm64": "Microsoft.NET.Runtime.Wasi.${WasiVersion}.Sdk.osx-arm64"
       }
     }
   }
