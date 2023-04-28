@@ -104,7 +104,7 @@ stages:
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
       ############ WINDOWS BUILD ############
-      - job: Build_Windows
+      - job: Build_Windows_arm64
         displayName: Windows
         timeoutInMinutes: 480
         variables:
@@ -144,7 +144,7 @@ stages:
           condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
 
       ####### Last job - windows job that builds workloads too at the end #########
-      - job: Build_Windows
+      - job: Build_Windows_x64
         displayName: Windows
         timeoutInMinutes: 480
         variables:
