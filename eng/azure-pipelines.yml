@@ -125,10 +125,12 @@ stages:
               assetManifestOS: win
               assetManifestPlatform: x64
               archflag: -arch x64
+              SkipPublishWorkloads: true
             arm64:
               assetManifestOS: win
               assetManifestPlatform: arm64
               archflag: -arch arm64
+              SkipPublishWorkloads: false
         pool:
           ${{ if eq(variables['System.TeamProject'], 'public') }}:
             name: $(DncEngPublicBuildPool)
@@ -150,12 +152,103 @@ stages:
             C:\msys64\usr\bin\bash -lc 'pacman --noconfirm -S msys/make msys/ninja msys/cmake msys/diffutils'
           displayName: Install MSYS2 packages (GNU Make and related)
 
-        - powershell: eng\build.ps1 -ci -restore -build -pack $(archflag) -configuration $(_BuildConfig) $(_InternalBuildArgs) /p:TargetWorkloadOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) /p:MsysDir=c:\msys64 /p:RestoreUsingNuGetTargets=false /p:workloadPackagesPath=$(Build.SourcesDirectory)\artifacts\packages\$(_BuildConfig)\Shipping
-          displayName: 'Build and package'
+        - script: |
+            .\build.cmd $(archflag) -restore -build -pack -ci -configuration $(_BuildConfig) -sign -publish /p:SkipWorkloads=true /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) /p:workloadPackagesPath=$(Build.SourcesDirectory)\artifacts\packages\$(_BuildConfig)\Shipping $(_InternalBuildArgs)
+          displayName: Build and Publish
 
-        - powershell: eng\common\build.ps1 -ci -restore -publish -configuration $(_BuildConfig) $(_InternalBuildArgs) /p:AssetManifestOS=$(assetManifestOS) /p:TargetWorkloadOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) -projects $(Build.SourcesDirectory)\wasi-sdk.proj
-          displayName: Publish packages
-          condition: and(succeeded(), ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest'))
+        - task: CopyFiles@2
+          displayName: Prepare job-specific intermediate artifacts subdirectory
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/artifacts/packages/$(_BuildConfig)'
+            Contents: |
+              Shipping/**/*
+              NonShipping/**/*
+            TargetFolder: '$(Build.StagingDirectory)/IntermediateArtifacts/windows'
+            CleanTargetFolder: false
+            Overwrite: true
+
+        - task: PublishBuildArtifacts@1
+          displayName: Publish intermediate artifacts
+          inputs:
+            pathToPublish: '$(Build.StagingDirectory)/IntermediateArtifacts'
+            artifactName: IntermediateArtifacts
+            artifactType: container
+
+        - script: |
+            rmdir /s /q binaryen node python llvm emscripten
+          displayName: Remove temporary artifacts
+
+      - job: Build_Workloads
+        displayName: Workloads
+        dependsOn:
+          - Build_Windows
+        timeoutInMinutes: 120
+        pool:
+          ${{ if eq(variables['System.TeamProject'], 'public') }}:
+            name: $(DncEngPublicBuildPool)
+            demands: ImageOverride -equals windows.vs2022.amd64.open
+          ${{ if eq(variables['System.TeamProject'], 'internal') }}:
+            name: $(DncEngInternalBuildPool)
+            demands: ImageOverride -equals windows.vs2022.amd64
+        strategy:
+          matrix:
+            x64:
+              assetManifestOS: win
+              assetManifestPlatform: x64
+              archflag: -arch x64
+              SkipPublishWorkloads: false
+        steps:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: IntermediateArtifacts
+            path: 'artifacts/packages'
+            patterns: |
+              IntermediateArtifacts/windows/Shipping/*.*
+        - script: |
+            .\build.cmd $(archflag) -restore -build -pack -ci -configuration $(_BuildConfig) -sign -publish /p:SkipBuild=true /p:PackageRID=$(assetManifestOS)-$(assetManifestPlatform) /p:AssetManifestOS=$(assetManifestOS) /p:PlatformName=$(assetManifestPlatform) /p:workloadPackagesPath=$(Build.SourcesDirectory)\artifacts\packages\windows\Shipping $(_InternalBuildArgs)
+          displayName: Build and Publish
+        - task: CopyFiles@2
+          displayName: Prepare job-specific intermediate artifacts subdirectory
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/artifacts/packages/$(_BuildConfig)'
+            Contents: |
+              Shipping/**/*
+              NonShipping/**/*
+            TargetFolder: '$(Build.StagingDirectory)/IntermediateArtifacts/windows'
+            CleanTargetFolder: false
+            Overwrite: true
+        - task: PublishBuildArtifacts@1
+          displayName: Publish intermediate artifacts
+          inputs:
+            pathToPublish: '$(Build.StagingDirectory)/IntermediateArtifacts'
+            artifactName: IntermediateArtifacts
+            artifactType: container
+        # Upload packages wrapping msis
+        - task: CopyFiles@2
+          displayName: Prepare job-specific intermediate artifacts subdirectory
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/artifacts/packages/windows'
+            Contents: |
+              Shipping/**/*
+              NonShipping/**/*
+            TargetFolder: '$(Build.StagingDirectory)/IntermediateArtifacts/workloads'
+            CleanTargetFolder: true
+        # Delete wixpdb files before they are uploaded to artifacts
+        - task: DeleteFiles@1
+          displayName: Delete wixpdb's
+          inputs:
+            SourceFolder: $(Build.SourcesDirectory)/artifacts/workloadPackages
+            Contents: '*.wixpdb'
+        # Upload artifacts to be used for generating VS components
+        - task: PublishPipelineArtifact@1
+          displayName: Publish workload artifacts
+          inputs:
+            targetPath: $(Build.SourcesDirectory)/artifacts/VSSetup/$(_BuildConfig)/Insertion/
+            artifactName: 'Workloads'
+          continueOnError: true
+          condition: ne(variables['SkipPublishWorkloads'], 'true')
+        - powershell: $(CheckNuGetSizesScript)
+          displayName: Check NuGet sizes
 
 ############ POST BUILD ARCADE LOGIC ############
 - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest')) }}:
